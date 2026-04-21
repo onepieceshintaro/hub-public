@@ -17,7 +17,7 @@ MOOD_URL = "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
 ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
 
 st.link_button(
-    "🧠  CBT セルフヘルプ",
+    "💭  CBT セルフヘルプ",
     CBT_URL,
     use_container_width=True,
 )
