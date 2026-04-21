@@ -222,3 +222,8 @@ with st.expander("ℹ️ このツールについて"):
         データは各アプリのブラウザ内ID単位で保存されます。
         """
     )
+    st.link_button(
+        "💬 ご意見・感想はこちら",
+        "https://docs.google.com/forms/d/e/1FAIpQLSetCb_dHG6JFsUzhK9ZYxydgh5cP8w07Q6NRO4ouEM7BvSTRw/viewform",
+        use_container_width=True,
+    )
