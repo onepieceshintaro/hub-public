@@ -132,20 +132,20 @@ ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.a
 u_query = f"?u={current_uid}" if current_uid else ""
 
 st.link_button(
-    "💭  CBT セルフヘルプ",
-    CBT_URL + u_query,
-    use_container_width=True,
-)
-st.caption("　　認知行動療法のワークを AI と一緒に進める")
-
-st.write("")
-
-st.link_button(
     "📊  気分トラッカー",
     MOOD_URL + u_query,
     use_container_width=True,
 )
 st.caption("　　毎日の気分・体調を記録してグラフで振り返る")
+
+st.write("")
+
+st.link_button(
+    "💭  CBT セルフヘルプ",
+    CBT_URL + u_query,
+    use_container_width=True,
+)
+st.caption("　　認知行動療法のワークを AI と一緒に進める（深く内省したい時に）")
 
 st.write("")
 
