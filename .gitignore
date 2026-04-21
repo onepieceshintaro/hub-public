@@ -1,0 +1,15 @@
+# Secrets
+.streamlit/secrets.toml
+.env
+*.env
+*.bak
+*~
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
