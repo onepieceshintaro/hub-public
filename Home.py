@@ -1,12 +1,12 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="メンタルケア Hub",
+    page_title="メンタルセルフケア",
     page_icon="🌱",
     layout="centered",
 )
 
-st.markdown("### 🌱 メンタルケア Hub")
+st.markdown("### 🌱 メンタルセルフケア")
 st.caption("当事者エンジニアが作るセルフヘルプツール集")
 
 st.markdown("---")
