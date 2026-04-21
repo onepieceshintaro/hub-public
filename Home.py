@@ -6,12 +6,10 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("🌱 メンタルケア Hub")
+st.markdown("### 🌱 メンタルケア Hub")
 st.caption("当事者エンジニアが作るセルフヘルプツール集")
 
 st.markdown("---")
-
-st.markdown("### 📱 アプリ一覧")
 st.write("")
 
 CBT_URL = "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
