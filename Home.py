@@ -136,7 +136,7 @@ st.link_button(
     MOOD_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　毎日の気分・体調を記録してグラフで振り返る")
+st.caption("　　1日の終わりに。気分・体調を記録してグラフで振り返る")
 
 st.write("")
 
@@ -145,7 +145,7 @@ st.link_button(
     CBT_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　認知行動療法(CBT)のワークを AI と一緒に進める（深く内省したい時に）")
+st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える（CBT）")
 
 st.write("")
 
@@ -154,7 +154,7 @@ st.link_button(
     ASSERTION_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　アサーション・トレーニングで、言いにくい場面を整理する")
+st.caption("　　モヤっとした会話の後に。言いにくい場面を整理する（アサーション）")
 
 st.markdown("---")
 
