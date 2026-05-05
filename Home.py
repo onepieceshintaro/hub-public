@@ -145,7 +145,7 @@ st.link_button(
     CBT_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える（CBT）")
+st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える")
 
 st.write("")
 st.markdown("---")
