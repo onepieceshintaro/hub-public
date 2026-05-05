@@ -148,13 +148,20 @@ st.link_button(
 st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える（CBT）")
 
 st.write("")
+st.markdown("---")
 
-st.link_button(
-    "🗣  伝え方ノート",
-    ASSERTION_URL + u_query,
-    use_container_width=True,
-)
-st.caption("　　モヤっとした会話の後に。言いにくい場面を整理する（アサーション）")
+# 伝え方ノートは、思考の整理ノートから誘導される位置付け（サブ）
+with st.expander("🗣 伝え方ノート（言えなかった場面の文案を作る）", expanded=False):
+    st.caption(
+        "「言いたかったけど言えなかった」場面を整理して、"
+        "**3パターンの文案**を一緒に考えるツールです。"
+        "思考の整理ノートで「これは伝え方の場面かも」と気づいた時に開くのがおすすめ。"
+    )
+    st.link_button(
+        "🗣  伝え方ノートを開く",
+        ASSERTION_URL + u_query,
+        use_container_width=True,
+    )
 
 st.markdown("---")
 
