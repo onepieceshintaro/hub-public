@@ -3,6 +3,8 @@ name: Keep apps awake
 # 12時間に1回、4アプリ全部を ping してスリープを防ぐ。
 # - cron は UTC。JST 9:00 と 21:00 に発火する設定。
 # - workflow_dispatch で手動実行も可能。
+# - リクエストが届いた時点で Streamlit は起き始めるので、
+#   curl の終了コードは無視する（リダイレクト過多 = exit 47 等は無害）。
 
 on:
   schedule:
@@ -13,26 +15,20 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Hub
+      - name: Ping all apps (ignore curl exit codes)
         run: |
-          curl -sS -L --max-time 60 -o /dev/null \
-            -w "Hub:        %{http_code}\n" \
-            "https://app-public-qpy8b2ziwgdf9h2vmu5hqp.streamlit.app/"
-
-      - name: Ping Mood Tracker
-        run: |
-          curl -sS -L --max-time 60 -o /dev/null \
-            -w "Mood:       %{http_code}\n" \
-            "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
-
-      - name: Ping CBT
-        run: |
-          curl -sS -L --max-time 60 -o /dev/null \
-            -w "CBT:        %{http_code}\n" \
-            "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
-
-      - name: Ping Assertion
-        run: |
-          curl -sS -L --max-time 60 -o /dev/null \
-            -w "Assertion:  %{http_code}\n" \
-            "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
+          ping_url () {
+            local label="$1"
+            local url="$2"
+            local code
+            code=$(curl -sS -L --max-redirs 3 --max-time 60 \
+                        -o /dev/null -w "%{http_code}" "$url" \
+                   || echo "redirect-or-error")
+            echo "${label}: ${code}"
+          }
+          ping_url "Hub      " "https://app-public-qpy8b2ziwgdf9h2vmu5hqp.streamlit.app/"
+          ping_url "Mood     " "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
+          ping_url "CBT      " "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
+          ping_url "Assertion" "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
+          # ping を送ること自体が目的なので、結果に関わらず success
+          exit 0
