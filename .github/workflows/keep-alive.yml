@@ -1,0 +1,38 @@
+name: Keep apps awake
+
+# 12時間に1回、4アプリ全部を ping してスリープを防ぐ。
+# - cron は UTC。JST 9:00 と 21:00 に発火する設定。
+# - workflow_dispatch で手動実行も可能。
+
+on:
+  schedule:
+    - cron: "0 0,12 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Hub
+        run: |
+          curl -sS -L --max-time 60 -o /dev/null \
+            -w "Hub:        %{http_code}\n" \
+            "https://app-public-qpy8b2ziwgdf9h2vmu5hqp.streamlit.app/"
+
+      - name: Ping Mood Tracker
+        run: |
+          curl -sS -L --max-time 60 -o /dev/null \
+            -w "Mood:       %{http_code}\n" \
+            "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
+
+      - name: Ping CBT
+        run: |
+          curl -sS -L --max-time 60 -o /dev/null \
+            -w "CBT:        %{http_code}\n" \
+            "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
+
+      - name: Ping Assertion
+        run: |
+          curl -sS -L --max-time 60 -o /dev/null \
+            -w "Assertion:  %{http_code}\n" \
+            "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
