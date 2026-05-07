@@ -1,14 +1,16 @@
 name: Keep apps awake
 
-# 12時間に1回、4アプリ全部を ping してスリープを防ぐ。
-# - cron は UTC。JST 9:00 と 21:00 に発火する設定。
+# 4時間に1回、4アプリ全部を ping してスリープを防ぐ。
+# - cron は UTC。JST 9:00/13:00/17:00/21:00/1:00/5:00 に発火する設定。
+# - 短縮理由：wake-up リダイレクトループ（ERR_TOO_MANY_REDIRECTS）の遭遇率を下げるため
+#   コンテナが「眠った状態」より「温かい状態」を保ちたい。GitHub Actions 無料枠内で十分。
 # - workflow_dispatch で手動実行も可能。
 # - リクエストが届いた時点で Streamlit は起き始めるので、
 #   curl の終了コードは無視する（リダイレクト過多 = exit 47 等は無害）。
 
 on:
   schedule:
-    - cron: "0 0,12 * * *"
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 jobs:
