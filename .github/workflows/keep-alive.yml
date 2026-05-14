@@ -1,12 +1,14 @@
 name: Keep apps awake
 
-# 4時間に1回、4アプリ全部を ping してスリープを防ぐ。
-# - cron は UTC。JST 9:00/13:00/17:00/21:00/1:00/5:00 に発火する設定。
-# - 短縮理由：wake-up リダイレクトループ（ERR_TOO_MANY_REDIRECTS）の遭遇率を下げるため
-#   コンテナが「眠った状態」より「温かい状態」を保ちたい。GitHub Actions 無料枠内で十分。
-# - workflow_dispatch で手動実行も可能。
-# - リクエストが届いた時点で Streamlit は起き始めるので、
-#   curl の終了コードは無視する（リダイレクト過多 = exit 47 等は無害）。
+# Playwright で実ブラウザを起動し、各アプリを「ユーザーがアクセスした」状態にする。
+# Streamlit Community Cloud のスリープ判定は WebSocket セッションが基準なので、
+# curl の HTTP ping だけでは効果が薄い。Playwright なら確実にセッションが作られる。
+#
+# - cron: UTC で4時間ごと（JST 9/13/17/21/1/5 時）
+# - workflow_dispatch: 手動実行可能
+# - 1アプリ ~15-20秒、合計2分前後で完了
+# - スリープ中なら "Yes, get this app back up!" ボタンを自動クリック
+# - 1つのアプリで失敗しても次へ進む（fail-fast しない）
 
 on:
   schedule:
@@ -16,21 +18,87 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Ping all apps (ignore curl exit codes)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Playwright + Chromium
         run: |
-          ping_url () {
-            local label="$1"
-            local url="$2"
-            local code
-            code=$(curl -sS -L --max-redirs 3 --max-time 60 \
-                        -o /dev/null -w "%{http_code}" "$url" \
-                   || echo "redirect-or-error")
-            echo "${label}: ${code}"
-          }
-          ping_url "Hub      " "https://app-public-qpy8b2ziwgdf9h2vmu5hqp.streamlit.app/"
-          ping_url "Mood     " "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
-          ping_url "CBT      " "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
-          ping_url "Assertion" "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
-          # ping を送ること自体が目的なので、結果に関わらず success
-          exit 0
+          python -m pip install --upgrade pip
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Visit apps with real browser session
+        run: |
+          python <<'PYEOF'
+          import sys
+          import time
+          from playwright.sync_api import sync_playwright
+
+          URLS = [
+              ("Hub      ", "https://app-public-qpy8b2ziwgdf9h2vmu5hqp.streamlit.app/"),
+              ("Mood     ", "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"),
+              ("CBT      ", "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"),
+              ("Assertion", "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"),
+          ]
+
+          WAKE_SELECTORS = [
+              "text=Yes, get this app back up!",
+              "text=Wake up this app",
+              "button:has-text('Wake')",
+          ]
+
+          def visit(browser, label, url):
+              ctx = browser.new_context(
+                  viewport={"width": 1280, "height": 800},
+                  user_agent=(
+                      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  ),
+              )
+              page = ctx.new_page()
+              try:
+                  page.goto(url, timeout=120000, wait_until="domcontentloaded")
+
+                  # スリープ中なら wake-up ボタンを押す
+                  woke = False
+                  for sel in WAKE_SELECTORS:
+                      try:
+                          loc = page.locator(sel).first
+                          if loc.is_visible(timeout=3000):
+                              loc.click()
+                              woke = True
+                              print(f"{label}: wake button clicked")
+                              break
+                      except Exception:
+                          pass
+
+                  # ネットワークアイドル待ち（タイムアウトは無視）
+                  try:
+                      page.wait_for_load_state("networkidle", timeout=120000)
+                  except Exception:
+                      pass
+
+                  # WebSocket セッションを十分に維持する
+                  time.sleep(12 if woke else 8)
+
+                  print(f"{label}: OK  (woke={woke})")
+              except Exception as e:
+                  print(f"{label}: ERROR {type(e).__name__}: {e}", file=sys.stderr)
+              finally:
+                  try:
+                      ctx.close()
+                  except Exception:
+                      pass
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              try:
+                  for label, url in URLS:
+                      visit(browser, label, url)
+              finally:
+                  browser.close()
+          PYEOF
