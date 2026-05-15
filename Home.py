@@ -127,6 +127,7 @@ st.write("")
 CBT_URL = "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
 MOOD_URL = "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
 ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
+SELFMAP_URL = "https://self-map-public-cwdyf34nskswtaw2jwvylp.streamlit.app/"
 
 # キーが設定されていれば各アプリURLに付与
 u_query = f"?u={current_uid}" if current_uid else ""
@@ -146,6 +147,15 @@ st.link_button(
     use_container_width=True,
 )
 st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える")
+
+st.write("")
+
+st.link_button(
+    "🗺️  自分マップ",
+    SELFMAP_URL + u_query,
+    use_container_width=True,
+)
+st.caption("　　自己理解を整理する。取扱説明書・働き方の条件・強み など")
 
 st.write("")
 st.markdown("---")
