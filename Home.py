@@ -122,6 +122,25 @@ if current_uid:
         st.caption(f"👤 {_nick}")
 
 st.markdown("---")
+
+# ---------------- 5 フェーズ俯瞰（軽量・初見の人向け）----------------
+with st.expander("🗺️ 5 フェーズの全体像（このアプリ群が支えるもの）", expanded=False):
+    st.caption(
+        "「仕事のしんどさ」は、人によって今どこにいるかが違います。"
+        "5 段階の流れで眺めると、自分の今と次の一歩が見えやすくなります。"
+    )
+    st.markdown(
+        "1. **🌱 気づき** — 何がつらいのか言葉にする段階\n"
+        "2. **🧭 整理** — 症状・状況を整理して、次の判断をする段階\n"
+        "3. **🛌 回復** — 休むことに罪悪感を持たずに過ごす段階\n"
+        "4. **🔍 再選択** — 自分に合う働き方を考え直す段階\n"
+        "5. **🚪 分岐** — 具体的な次の一歩を選ぶ段階"
+    )
+    st.caption(
+        "**判定ではなく並走するスタンス**。順番通りに進むとも限らず、"
+        "行ったり来たりしながら、自分のペースで。"
+    )
+
 st.write("")
 
 CBT_URL = "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
@@ -137,7 +156,7 @@ st.link_button(
     MOOD_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　1日の終わりに。気分・体調を記録してグラフで振り返る")
+st.caption("　　1日の終わりに。気分・体調を記録してグラフで振り返る　📍 Phase 1・3")
 
 st.write("")
 
@@ -146,7 +165,7 @@ st.link_button(
     CBT_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える")
+st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える　📍 Phase 1・3")
 
 st.write("")
 
@@ -155,13 +174,18 @@ st.link_button(
     SELFMAP_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　自己理解を整理する。取扱説明書・働き方の条件・強み など")
+st.caption(
+    "　　自己理解を整理する。取扱説明書・働き方の条件・強み など　📍 Phase 1・3・4"
+)
 
 st.write("")
 st.markdown("---")
 
 # 伝え方ノートは、思考の整理ノートから誘導される位置付け（サブ）
-with st.expander("🗣 伝え方ノート（言えなかった場面の文案を作る）", expanded=False):
+with st.expander(
+    "🗣 伝え方ノート（言えなかった場面の文案を作る）　📍 Phase 4",
+    expanded=False,
+):
     st.caption(
         "「言いたかったけど言えなかった」場面を整理して、"
         "**3パターンの文案**を一緒に考えるツールです。"
