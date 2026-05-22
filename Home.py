@@ -140,6 +140,10 @@ with st.expander("🗺️ 5 フェーズの全体像", expanded=False):
         "**判定ではなく並走するスタンス**。順番通りに進むとも限らず、"
         "行ったり来たりしながら、自分のペースで。"
     )
+    st.caption(
+        "**Phase 2 はアプリで扱いません**（医療機関・公的相談窓口に繋ぐ範囲）。"
+        "緊急時の窓口は各アプリ内（CRISIS_RESPONSE）に案内があります。"
+    )
 
 st.write("")
 
@@ -156,7 +160,7 @@ st.link_button(
     MOOD_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　1日の終わりに。気分・体調を記録してグラフで振り返る　📍 Phase 1・3")
+st.caption("　　1 日の終わりに、気分を記録する")
 
 st.write("")
 
@@ -165,7 +169,7 @@ st.link_button(
     CBT_URL + u_query,
     use_container_width=True,
 )
-st.caption("　　考えすぎてしまう時に。AIと一緒に思考を整える　📍 Phase 1・3")
+st.caption("　　考えすぎてしまう時に、AI と整える")
 
 st.write("")
 
@@ -174,9 +178,7 @@ st.link_button(
     SELFMAP_URL + u_query,
     use_container_width=True,
 )
-st.caption(
-    "　　自己理解を整理する。取扱説明書・働き方の条件・強み など　📍 Phase 1・3・4"
-)
+st.caption("　　自己理解を整理する（取扱説明書・働き方・強み・価値観）")
 
 st.write("")
 
@@ -185,9 +187,7 @@ st.link_button(
     ASSERTION_URL + u_query,
     use_container_width=True,
 )
-st.caption(
-    "　　言えなかった場面の **3パターンの文案** を考える　📍 Phase 4"
-)
+st.caption("　　言えなかった場面の文案を考える")
 
 st.markdown("---")
 
@@ -201,10 +201,6 @@ st.markdown(
     "| 🛌 **3. 回復** | 📊 気分の記録（生活リズム）／ 💭 思考の整理ノート ／ 🗺️ 自分マップ「再発のサインリスト」|\n"
     "| 🔍 **4. 再選択** | 🗺️ 自分マップ（取扱説明書・働き方条件・強み・価値観）／ 🗣 伝え方ノート |\n"
     "| 🚪 **5. 分岐** | （準備中） |"
-)
-st.caption(
-    "Phase 2 は専門領域として扱いません。"
-    "緊急時の窓口は各アプリ内（CRISIS_RESPONSE）に案内があります。"
 )
 
 st.markdown("---")
@@ -273,8 +269,15 @@ with st.expander("ℹ️ このツールについて"):
         データは各アプリのブラウザ内ID単位で保存されます。
         """
     )
+
+# ---------------- サイドバー（ご意見・感想・補足）----------------
+# 4 アプリの sidebar とトーンを揃える。メインフローを軽くする。
+with st.sidebar:
+    st.markdown("**🌱 メンタルセルフケア**")
+    st.caption("4 アプリ共通の入口（Hub）")
+    st.divider()
     st.link_button(
-        "💬 ご意見・感想はこちら",
+        "💬 ご意見・感想",
         "https://docs.google.com/forms/d/e/1FAIpQLSetCb_dHG6JFsUzhK9ZYxydgh5cP8w07Q6NRO4ouEM7BvSTRw/viewform",
         use_container_width=True,
     )
