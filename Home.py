@@ -123,6 +123,141 @@ if current_uid:
 
 st.markdown("---")
 
+# アプリ URL（ガイドとボタンで共通使用するためここで定義）
+CBT_URL = "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
+MOOD_URL = "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
+ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
+SELFMAP_URL = "https://self-map-public-cwdyf34nskswtaw2jwvylp.streamlit.app/"
+u_query = f"?u={current_uid}" if current_uid else ""
+
+# ---------------- 🧭 アプリ選びガイド（初回は展開・2 回目以降はボタン）----------------
+# 初回判定：ニックネーム未設定 = 新規ユーザーと見なす（Hub 初訪問の近似）
+_has_nickname = bool(current_uid and get_nickname(current_uid))
+_show_guide_state_key = "_show_guide"
+# 初回はデフォルトで展開、それ以降は閉じ
+if _show_guide_state_key not in st.session_state:
+    st.session_state[_show_guide_state_key] = not _has_nickname
+
+# 上部右寄せの「🧭 ガイド」ボタン（returning users 向け）
+if _has_nickname:
+    _gcol1, _gcol2 = st.columns([4, 1])
+    with _gcol2:
+        if st.button(
+            "🧭 ガイド",
+            use_container_width=True,
+            key="open_guide_button",
+        ):
+            st.session_state[_show_guide_state_key] = True
+            st.rerun()
+
+if st.session_state.get(_show_guide_state_key):
+    # 推薦マッピング（URL は上で定義した変数を再利用）
+    _GUIDE_RECOMMENDATIONS = {
+        "💭 仕事のしんどさを言葉にできない": {
+            "main": [
+                ("🗺️  自分マップ「言葉にする」", SELFMAP_URL),
+                ("💭  思考の整理ノート", CBT_URL),
+            ],
+            "also": [
+                ("📊  気分の記録", MOOD_URL),
+            ],
+            "reason": (
+                "「言葉にできない」状態の入口として、自分マップの「**言葉にする**」"
+                "セクションが軽くて始めやすいです。"
+                "話したい感じなら思考の整理ノート、まず日次記録なら気分の記録から。"
+            ),
+        },
+        "🌀 思考が止まらない・考えすぎる": {
+            "main": [("💭  思考の整理ノート", CBT_URL)],
+            "also": [("📊  気分の記録", MOOD_URL)],
+            "reason": (
+                "考えすぎている時は、思考の整理ノートで AI と一緒に「考えを外側から眺める」"
+                "のが効きやすいです。並行して気分の記録で日々のパターンを残すのも◯。"
+            ),
+        },
+        "📊 体調や気分の変化が気になる": {
+            "main": [("📊  気分の記録", MOOD_URL)],
+            "also": [("🗺️  自分マップ「再発のサインリスト」", SELFMAP_URL)],
+            "reason": (
+                "気分・体調・気圧・睡眠などのパターンを見るなら気分の記録から。"
+                "回復期に「サイン」を自分の言葉で書きたいなら自分マップの再発のサインリストも。"
+            ),
+        },
+        "🌱 自分の強み・価値観を整理したい": {
+            "main": [("🗺️  自分マップ", SELFMAP_URL)],
+            "also": [("💭  思考の整理ノート", CBT_URL)],
+            "reason": (
+                "自分マップに **取扱説明書 / 強みインベントリ / 価値観カードソート / 働き方の条件** "
+                "が揃っています。書く時は AI 対話補助のオプションもあります。"
+            ),
+        },
+        "🗣 言えなかった場面の文案を考えたい": {
+            "main": [("🗣  伝え方ノート", ASSERTION_URL)],
+            "also": [("💭  思考の整理ノート", CBT_URL)],
+            "reason": (
+                "言えなかった場面の **3 パターンの文案** を伝え方ノートで考えられます。"
+                "「そもそも何を伝えたいか」を整理したい時は思考の整理ノートから。"
+            ),
+        },
+        "🤷 よくわからない・全部気になる": {
+            "main": [("📊  気分の記録", MOOD_URL)],
+            "also": [
+                ("🗺️  自分マップ「言葉にする」", SELFMAP_URL),
+                ("💭  思考の整理ノート", CBT_URL),
+            ],
+            "reason": (
+                "迷ったら **気分の記録から** がおすすめ。1 日 30 秒、毎日の入口になります。"
+                "並行で自分マップの「言葉にする」を眺めるのも軽い導線です。"
+            ),
+        },
+    }
+
+    with st.container(border=True):
+        _c_head1, _c_head2 = st.columns([5, 1])
+        with _c_head1:
+            st.markdown("### 🧭 アプリ選びに迷ったら")
+        with _c_head2:
+            if st.button(
+                "✕ 閉じる",
+                use_container_width=True,
+                key="close_guide_button",
+            ):
+                st.session_state[_show_guide_state_key] = False
+                st.session_state.pop("guide_q1", None)
+                st.rerun()
+
+        st.caption(
+            "1 つの質問で、**まず試すアプリ**をご案内します。"
+            "推薦に従う必要はありません — **他の候補もどうぞ**のスタンスです。"
+        )
+
+        _q1 = st.radio(
+            "今、一番気になるのはどこですか？",
+            list(_GUIDE_RECOMMENDATIONS.keys()),
+            index=None,
+            key="guide_q1",
+        )
+
+        if _q1 and _q1 in _GUIDE_RECOMMENDATIONS:
+            _rec = _GUIDE_RECOMMENDATIONS[_q1]
+            st.markdown("---")
+            st.markdown(f"💡 {_rec['reason']}")
+            st.write("")
+            st.markdown("**🎯 まず試してみる**")
+            for _name, _url in _rec["main"]:
+                st.link_button(
+                    _name, _url + u_query, use_container_width=True,
+                )
+            if _rec.get("also"):
+                st.write("")
+                st.markdown("**🌱 もしくはこちらもどうぞ**")
+                for _name, _url in _rec["also"]:
+                    st.link_button(
+                        _name, _url + u_query, use_container_width=True,
+                    )
+
+    st.write("")
+
 # ---------------- 5 フェーズ俯瞰（expander・初見の人向け）----------------
 with st.expander("🗺️ 5 フェーズの全体像", expanded=False):
     st.caption(
@@ -147,13 +282,7 @@ with st.expander("🗺️ 5 フェーズの全体像", expanded=False):
 
 st.write("")
 
-CBT_URL = "https://cbt-bot-public-lxcmvrmdys9s3hfg6w2r7l.streamlit.app/"
-MOOD_URL = "https://mood-tracker-public-exqvwdkagbgt3gk4mlmu6f.streamlit.app/"
-ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.app/"
-SELFMAP_URL = "https://self-map-public-cwdyf34nskswtaw2jwvylp.streamlit.app/"
-
-# キーが設定されていれば各アプリURLに付与
-u_query = f"?u={current_uid}" if current_uid else ""
+# (URL と u_query はガイドブロック上部で定義済)
 
 st.link_button(
     "📊  気分の記録",
