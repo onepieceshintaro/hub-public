@@ -130,13 +130,31 @@ ASSERTION_URL = "https://assertion-bot-public-7yjqhpnvshkdkj7avedrml.streamlit.a
 SELFMAP_URL = "https://self-map-public-cwdyf34nskswtaw2jwvylp.streamlit.app/"
 u_query = f"?u={current_uid}" if current_uid else ""
 
-# ---------------- 🧭 アプリ選びガイド（初回は展開・2 回目以降はボタン）----------------
+# ---------------- 🧭 アプリ選びガイド（多ターン対話・初回展開）----------------
+# AI チャット形式で「今気になっているテーマ」を 1-3 ターンで引き出し、
+# 推薦アプリを返す。API 未設定時は radio fallback。
+#
 # 初回判定：ニックネーム未設定 = 新規ユーザーと見なす（Hub 初訪問の近似）
 _has_nickname = bool(current_uid and get_nickname(current_uid))
 _show_guide_state_key = "_show_guide"
-# 初回はデフォルトで展開、それ以降は閉じ
 if _show_guide_state_key not in st.session_state:
     st.session_state[_show_guide_state_key] = not _has_nickname
+
+# AI チャット利用可否
+try:
+    import chat_engine
+    _CHAT_GUIDE_AVAILABLE = chat_engine.is_available()
+except Exception:
+    chat_engine = None
+    _CHAT_GUIDE_AVAILABLE = False
+
+# アプリ key → 表示名・URL マッピング
+_APP_INFO = {
+    "mood": ("📊  気分の記録", MOOD_URL),
+    "cbt": ("💭  思考の整理ノート", CBT_URL),
+    "selfmap": ("🗺️  自分マップ", SELFMAP_URL),
+    "assertion": ("🗣  伝え方ノート", ASSERTION_URL),
+}
 
 # 上部右寄せの「🧭 ガイド」ボタン（returning users 向け）
 if _has_nickname:
@@ -223,38 +241,205 @@ if st.session_state.get(_show_guide_state_key):
                 key="close_guide_button",
             ):
                 st.session_state[_show_guide_state_key] = False
+                st.session_state.pop("hub_chat_messages", None)
+                st.session_state.pop("hub_chat_recommendation", None)
                 st.session_state.pop("guide_q1", None)
                 st.rerun()
 
-        st.caption(
-            "1 つの質問で、**まず試すアプリ**をご案内します。"
-            "推薦に従う必要はありません — **他の候補もどうぞ**のスタンスです。"
-        )
+        if _CHAT_GUIDE_AVAILABLE:
+            # ============ 多ターン対話モード ============
+            st.caption(
+                "**短い対話** で、まず試すアプリをご案内します。"
+                "**推薦に従う必要はありません** — 他の候補もどうぞのスタンスです。"
+                "話したくない時は下の「💬 選んで決める」を押せます。"
+            )
 
-        _q1 = st.radio(
-            "今、一番気になるのはどこですか？",
-            list(_GUIDE_RECOMMENDATIONS.keys()),
-            index=None,
-            key="guide_q1",
-        )
+            _hub_mkey = "hub_chat_messages"
+            if _hub_mkey not in st.session_state:
+                st.session_state[_hub_mkey] = []
 
-        if _q1 and _q1 in _GUIDE_RECOMMENDATIONS:
-            _rec = _GUIDE_RECOMMENDATIONS[_q1]
-            st.markdown("---")
-            st.markdown(f"💡 {_rec['reason']}")
-            st.write("")
-            st.markdown("**🎯 まず試してみる**")
-            for _name, _url in _rec["main"]:
-                st.link_button(
-                    _name, _url + u_query, use_container_width=True,
+            # オープニング AI メッセージ
+            with st.chat_message("assistant"):
+                st.markdown(chat_engine.OPENING_MESSAGE)
+
+            # 過去の会話
+            for _msg in st.session_state[_hub_mkey]:
+                with st.chat_message(_msg["role"]):
+                    _disp = (
+                        chat_engine.strip_recommendation_block(_msg["content"])
+                        if _msg["role"] == "assistant"
+                        else _msg["content"]
+                    )
+                    st.markdown(_disp)
+
+            # ユーザー入力
+            _user_input = st.chat_input(
+                "ここに書いてください（書きたい分だけで OK）",
+                key="hub_chat_input",
+            )
+            if _user_input:
+                st.session_state[_hub_mkey].append(
+                    {"role": "user", "content": _user_input}
                 )
-            if _rec.get("also"):
+                try:
+                    with st.spinner("…考えています…"):
+                        _ai_reply = chat_engine.chat_turn(
+                            st.session_state[_hub_mkey]
+                        )
+                    st.session_state[_hub_mkey].append(
+                        {"role": "assistant", "content": _ai_reply}
+                    )
+                    # 推薦が含まれていれば抽出
+                    _rec = chat_engine.extract_recommendation(_ai_reply)
+                    if _rec:
+                        st.session_state["hub_chat_recommendation"] = _rec
+                    st.rerun()
+                except Exception as _e:
+                    st.warning(f"AI 応答失敗：{_e}")
+                    st.session_state[_hub_mkey].pop()
+
+            # ボタン群（2 ターン以上書いた時に「おすすめを聞く」を表示）
+            _user_turns = sum(
+                1 for m in st.session_state[_hub_mkey]
+                if m["role"] == "user"
+            )
+            _has_rec = st.session_state.get("hub_chat_recommendation")
+
+            if _user_turns >= 1 and not _has_rec:
+                if st.button(
+                    "🎯 ここまでの話でおすすめを聞く",
+                    use_container_width=True,
+                    key="hub_chat_ask_rec",
+                ):
+                    # 推薦リクエストを送信
+                    st.session_state[_hub_mkey].append(
+                        {"role": "user", "content": "ここまでの話でおすすめを教えてください。"}
+                    )
+                    try:
+                        with st.spinner("…おすすめを考えています…"):
+                            _ai_reply = chat_engine.chat_turn(
+                                st.session_state[_hub_mkey]
+                            )
+                        st.session_state[_hub_mkey].append(
+                            {"role": "assistant", "content": _ai_reply}
+                        )
+                        _rec = chat_engine.extract_recommendation(_ai_reply)
+                        if _rec:
+                            st.session_state["hub_chat_recommendation"] = _rec
+                        st.rerun()
+                    except Exception as _e:
+                        st.warning(f"AI 応答失敗：{_e}")
+                        st.session_state[_hub_mkey].pop()
+
+            # 推薦表示
+            if _has_rec:
+                _rec = st.session_state["hub_chat_recommendation"]
+                st.markdown("---")
+                if _rec.get("reason"):
+                    st.markdown(f"💡 {_rec['reason']}")
+                    st.write("")
+                _main_keys = _rec.get("main") or []
+                _also_keys = _rec.get("also") or []
+                if _main_keys:
+                    st.markdown("**🎯 まず試してみる**")
+                    for _k in _main_keys:
+                        if _k in _APP_INFO:
+                            _name, _url = _APP_INFO[_k]
+                            st.link_button(
+                                _name, _url + u_query,
+                                use_container_width=True,
+                            )
+                if _also_keys:
+                    st.write("")
+                    st.markdown("**🌱 もしくはこちらもどうぞ**")
+                    for _k in _also_keys:
+                        if _k in _APP_INFO:
+                            _name, _url = _APP_INFO[_k]
+                            st.link_button(
+                                _name, _url + u_query,
+                                use_container_width=True,
+                            )
+
+            # 補助ボタン
+            _hb1, _hb2 = st.columns(2)
+            with _hb1:
+                if st.button(
+                    "🗑️ チャットをリセット",
+                    use_container_width=True,
+                    key="hub_chat_reset",
+                ):
+                    st.session_state[_hub_mkey] = []
+                    st.session_state.pop("hub_chat_recommendation", None)
+                    st.rerun()
+            with _hb2:
+                if st.button(
+                    "💬 選んで決める（対話なし）",
+                    use_container_width=True,
+                    key="hub_use_radio",
+                ):
+                    st.session_state["use_radio_fallback"] = True
+                    st.rerun()
+
+            # radio fallback への切替
+            if st.session_state.get("use_radio_fallback"):
+                st.markdown("---")
+                st.caption("対話を使わずに 1 つの質問で選びます。")
+                _q1 = st.radio(
+                    "今、一番気になるのはどこですか？",
+                    list(_GUIDE_RECOMMENDATIONS.keys()),
+                    index=None,
+                    key="guide_q1",
+                )
+                if _q1 and _q1 in _GUIDE_RECOMMENDATIONS:
+                    _rec_radio = _GUIDE_RECOMMENDATIONS[_q1]
+                    st.markdown(f"💡 {_rec_radio['reason']}")
+                    st.write("")
+                    st.markdown("**🎯 まず試してみる**")
+                    for _name, _url in _rec_radio["main"]:
+                        st.link_button(
+                            _name, _url + u_query,
+                            use_container_width=True,
+                        )
+                    if _rec_radio.get("also"):
+                        st.write("")
+                        st.markdown("**🌱 もしくはこちらもどうぞ**")
+                        for _name, _url in _rec_radio["also"]:
+                            st.link_button(
+                                _name, _url + u_query,
+                                use_container_width=True,
+                            )
+
+        else:
+            # ============ Fallback: radio モード（API 未設定時）============
+            st.caption(
+                "1 つの質問で、**まず試すアプリ**をご案内します。"
+                "推薦に従う必要はありません — **他の候補もどうぞ**のスタンスです。"
+            )
+
+            _q1 = st.radio(
+                "今、一番気になるのはどこですか？",
+                list(_GUIDE_RECOMMENDATIONS.keys()),
+                index=None,
+                key="guide_q1",
+            )
+
+            if _q1 and _q1 in _GUIDE_RECOMMENDATIONS:
+                _rec = _GUIDE_RECOMMENDATIONS[_q1]
+                st.markdown("---")
+                st.markdown(f"💡 {_rec['reason']}")
                 st.write("")
-                st.markdown("**🌱 もしくはこちらもどうぞ**")
-                for _name, _url in _rec["also"]:
+                st.markdown("**🎯 まず試してみる**")
+                for _name, _url in _rec["main"]:
                     st.link_button(
                         _name, _url + u_query, use_container_width=True,
                     )
+                if _rec.get("also"):
+                    st.write("")
+                    st.markdown("**🌱 もしくはこちらもどうぞ**")
+                    for _name, _url in _rec["also"]:
+                        st.link_button(
+                            _name, _url + u_query, use_container_width=True,
+                        )
 
     st.write("")
 
