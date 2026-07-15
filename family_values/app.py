@@ -13,6 +13,7 @@
 import streamlit as st
 
 import ai_engine
+import storage
 from profile import (
     RATING_MAX,
     RATING_MIN,
@@ -28,12 +29,28 @@ st.set_page_config(
     layout="centered",
 )
 
+# ---------------- 復元キー（家族の識別子）----------------
+# ?u=<32桁hex> をブラウザに紐づく家族キーとして扱う。既存 Hub と共通。
+try:
+    _u = st.query_params.get("u")
+except Exception:
+    _u = None
+current_uid = _u.lower() if (_u and storage.is_valid_hex(_u)) else None
+
+# 永続化が有効か = DB 設定あり かつ 復元キーあり
+_persist = storage.is_available() and bool(current_uid)
+
 # ---------------- 状態 ----------------
-if "members" not in st.session_state:
-    # 保存済みプロファイルのリスト（家族メンバー）
-    st.session_state["members"] = []  # list[Profile]
 if "draft_ratings" not in st.session_state:
     st.session_state["draft_ratings"] = default_ratings()
+
+# 復元キーが変わった／初回なら DB からメンバーを読み込む。
+# （永続化が無効なときは session_state 内でのみ保持）
+if _persist and st.session_state.get("_loaded_uid") != current_uid:
+    st.session_state["members"] = storage.load_members(current_uid)
+    st.session_state["_loaded_uid"] = current_uid
+elif "members" not in st.session_state:
+    st.session_state["members"] = []  # list[Profile]
 
 _members = st.session_state["members"]
 
@@ -148,10 +165,22 @@ with tab_diag:
             st.session_state["members"] = [
                 m for m in _members if m.name != prof.name
             ] + [prof]
-            st.success(
-                f"「{prof.name}」を家族に追加しました。"
-                "「② 家族共有」タブで並べて見られます。"
-            )
+            saved = storage.save_member(current_uid, prof) if _persist else False
+            if saved:
+                st.success(
+                    f"「{prof.name}」を家族に追加し、**復元キーに保存** しました。"
+                    "「👨‍👩‍👧 家族で見る」タブで並べて見られます。"
+                )
+            else:
+                st.success(
+                    f"「{prof.name}」を家族に追加しました。"
+                    "「👨‍👩‍👧 家族で見る」タブで並べて見られます。"
+                )
+                if storage.is_available() and not current_uid:
+                    st.info(
+                        "💡 このままだとリロードで消えます。下の"
+                        "「🔑 復元キー」で保存先を作ると、次回も復元できます。"
+                    )
 
 
 # ============================================================
@@ -236,13 +265,13 @@ with tab_solo:
 with tab_family:
     st.markdown("#### ② 家族全員の結果を並べる")
     st.caption(
-        "一人ずつ「① 個人診断」で作った結果を、ここで並べて見比べます。"
+        "一人ずつ「🪞 自分を知る」で作った結果を、ここで並べて見比べます。"
     )
 
     if not _members:
         st.info(
             "まだ誰も追加されていません。"
-            "「① 個人診断」で診断し、「この結果を家族に追加」を押してください。"
+            "「🪞 自分を知る」で診断し、「この結果を家族に追加」を押してください。"
         )
     else:
         cols = st.columns(min(len(_members), 3))
@@ -262,6 +291,8 @@ with tab_family:
                 st.markdown(m.summary_line())
             with c2:
                 if st.button("削除", key=f"del_{m.name}"):
+                    if _persist:
+                        storage.delete_member(current_uid, m.name)
                     st.session_state["members"] = [
                         x for x in _members if x.name != m.name
                     ]
@@ -282,7 +313,7 @@ with tab_ai:
     if len(_members) < 2:
         st.info(
             "AI 分析には **2 人以上** の登録が必要です。"
-            "「① 個人診断 → 家族に追加」を 2 人ぶん行ってください。"
+            "「🪞 自分を知る → 家族に追加」を 2 人ぶん行ってください。"
         )
     else:
         theme = st.text_area(
@@ -317,7 +348,7 @@ with tab_talk:
     if len(_members) < 2:
         st.info(
             "対話支援には **2 人以上** の登録が必要です。"
-            "「① 個人診断 → 家族に追加」を 2 人ぶん行ってください。"
+            "「🪞 自分を知る → 家族に追加」を 2 人ぶん行ってください。"
         )
     else:
         theme2 = st.text_input(
@@ -358,14 +389,60 @@ with st.sidebar:
     st.markdown("**🧭 家族の価値観マップ**")
     st.caption("価値観を可視化し、対話を支援する AI")
     st.divider()
+
+    # ---- 復元キー（家族の保存先）----
+    if storage.is_available():
+        with st.expander("🔑 復元キー（家族の保存先）", expanded=(current_uid is None)):
+            if current_uid:
+                st.caption("現在の復元キー（スクショ等で保管してください）")
+                st.code(storage.format_key(current_uid), language=None)
+                st.caption(
+                    "このページを **ブックマーク** すれば、次回は開くだけで"
+                    "同じ家族の記録に戻れます。"
+                )
+            else:
+                st.info(
+                    "まだ保存先がありません。キーを入力するか、新規作成すると"
+                    "家族の記録が次回も復元できます。"
+                )
+            st.divider()
+            st.caption("別のキーに切り替え")
+            _key_in = st.text_input(
+                "復元キー",
+                label_visibility="collapsed",
+                placeholder="XXXX-XXXX-…（32桁）",
+                key="key_input",
+            )
+            if st.button("このキーを使う", use_container_width=True):
+                _parsed = storage.parse_key(_key_in)
+                if _parsed:
+                    st.query_params["u"] = _parsed
+                    st.session_state.pop("_loaded_uid", None)
+                    st.rerun()
+                else:
+                    st.error("キーの形式が正しくありません（32桁hex）")
+            st.caption("新しい家族の記録を作る")
+            if st.button("➕ 新規作成", use_container_width=True):
+                import uuid
+
+                st.query_params["u"] = uuid.uuid4().hex
+                st.session_state.pop("_loaded_uid", None)
+                st.rerun()
+    else:
+        st.caption(
+            "※ この環境ではデータ保存（DB）が未設定のため、"
+            "記録はセッション内のみで、リロードで消えます。"
+        )
+
+    st.divider()
     st.caption(
         "このアプリは診断でも相性判定でもありません。"
         "“対話の共通言語” をつくるための試作（MVP）です。"
     )
     st.divider()
-    if st.button("🗑 データをリセット", use_container_width=True):
+    # 作業中のスクラッチだけを消す（保存済みの家族はキー配下に残る）
+    if st.button("🗑 入力をクリア", use_container_width=True):
         for k in [
-            "members",
             "current_profile",
             "solo_result",
             "ai_result",
