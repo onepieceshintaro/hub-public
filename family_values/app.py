@@ -64,8 +64,19 @@ with st.expander("このアプリの考え方（はじめての方へ）", expan
 
 st.markdown("---")
 
-tab_diag, tab_family, tab_ai, tab_talk = st.tabs(
-    ["① 個人診断", "② 家族共有", "③ AI 分析", "④ 対話支援"]
+st.caption(
+    "💡 **まず一人で** 使えます。手応えがあれば、相手にも診断をお願いして"
+    "二人で見る——という流れです。"
+)
+
+tab_diag, tab_solo, tab_family, tab_ai, tab_talk = st.tabs(
+    [
+        "🪞 自分を知る",
+        "🫱 相手を想像する（ひとり）",
+        "👨‍👩‍👧 家族で見る",
+        "🧭 AI 分析",
+        "💬 対話支援",
+    ]
 )
 
 
@@ -140,6 +151,82 @@ with tab_diag:
             st.success(
                 f"「{prof.name}」を家族に追加しました。"
                 "「② 家族共有」タブで並べて見られます。"
+            )
+
+
+# ============================================================
+# ①.5 ソロ起点：相手の視点を「仮説として」想像する
+# ============================================================
+with tab_solo:
+    st.markdown("#### 🫱 一人で、相手の視点を想像してみる")
+    st.caption(
+        "相手がいなくても、ここから始められます。"
+        "AI は相手の気持ちを **決めつけません**。"
+        "「こうだったのかもしれない」という *仮説* を出し、"
+        "最後は **相手に確かめる問い** に変えます。"
+    )
+
+    prof_solo = st.session_state.get("current_profile")
+    if not prof_solo:
+        st.info(
+            "先に「🪞 自分を知る」で、あなた自身の価値観を可視化してください。"
+            "（相手の登録は要りません）"
+        )
+    else:
+        st.markdown(
+            f"あなたが大切にしていること："
+            + "／".join(f"{c.emoji}{c.label}" for c in prof_solo.top_cards)
+        )
+        st.write("")
+        situation = st.text_area(
+            "すれ違った具体的な状況（任意）",
+            key="solo_situation",
+            placeholder="例：相談せずに自己投資の契約をして、相手が強く不安がった",
+            height=80,
+        )
+        partner_hint = st.text_input(
+            "相手について、思い当たることメモ（任意）",
+            key="solo_partner_hint",
+            placeholder="例：将来のお金の話にいつも慎重",
+        )
+        if st.button(
+            "🫱 相手の視点を想像してもらう",
+            use_container_width=True,
+            key="do_solo",
+        ):
+            with st.spinner("…別の見方を探しています…"):
+                st.session_state["solo_result"] = ai_engine.imagine_partner(
+                    prof_solo, situation, partner_hint
+                )
+
+        res = st.session_state.get("solo_result")
+        if res:
+            st.markdown("---")
+            st.warning(
+                "以下は **仮説** です。相手の気持ちの正解ではありません。"
+                "本当のところは、相手に聞いてみないとわかりません。",
+                icon="🫧",
+            )
+            if res.get("partner_maybe"):
+                st.markdown("**🤔 相手が守ろうとしていた *かもしれない* こと**")
+                for q in res["partner_maybe"]:
+                    st.markdown(f"- {q}")
+            if res.get("why_gap"):
+                st.markdown("**🔀 なぜ、すれ違いやすいのか**")
+                st.markdown(res["why_gap"])
+            if res.get("reflect_self"):
+                st.markdown("**🪞 自分の気持ちを整理する問い**")
+                for q in res["reflect_self"]:
+                    st.markdown(f"- {q}")
+            if res.get("ask_partner"):
+                st.markdown("**🗣 相手に確かめてみたい問い**")
+                for q in res["ask_partner"]:
+                    st.markdown(f"- {q}")
+            st.write("")
+            st.success(
+                "手応えがあれば、次は相手にも「🪞 自分を知る」を試してもらい、"
+                "「👨‍👩‍👧 家族で見る」で二人ぶんを並べてみてください。",
+                icon="🌱",
             )
 
 
@@ -280,6 +367,7 @@ with st.sidebar:
         for k in [
             "members",
             "current_profile",
+            "solo_result",
             "ai_result",
             "talk_result",
             "draft_ratings",

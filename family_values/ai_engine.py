@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 
 from profile import Comparison, Profile
-from value_cards import get_card
+from value_cards import VALUE_CARDS, get_card
 
 ENV_PATH = Path(__file__).parent / ".env"
 try:
@@ -220,6 +220,177 @@ def _analyze_fallback(comparison: Comparison, theme: str) -> str:
         "ここから、お互いに聞き合ってみてください。"
     )
     return "\n".join(parts)
+
+
+# ============================================================
+# ①.5 ソロ起点：相手の視点を「仮説として」想像する
+# ============================================================
+# 起点をひとりにするための機能。相手はこの場にいないので、
+# AI は相手の内面を “断定しない”。すべて仮説として提示し、
+# 「本人に確かめる問い」に必ず着地させる。
+#
+# 意思決定カテゴリの対比（fallback 用）:
+#   自分がどこに傾いているかに対して、相手が別の場所を大切に
+#   している “かもしれない” 候補カテゴリ。
+CONTRAST_CATEGORIES = {
+    "stability": ["growth", "autonomy"],
+    "growth": ["stability", "relation"],
+    "relation": ["autonomy", "growth"],
+    "autonomy": ["relation", "stability"],
+}
+
+
+def imagine_partner(
+    profile: Profile, situation: str = "", partner_hint: str = ""
+) -> dict:
+    """本人のプロファイル＋状況から、相手が守ろうとしているかもしれない
+    価値観を『仮説として』想像し、確かめるための問いを返す。
+
+    Args:
+        profile:      本人のプロファイル
+        situation:    すれ違った具体的な状況（任意）
+        partner_hint: 相手についてのメモ（任意）
+    返り値:
+        {
+          "partner_maybe": [相手が守ろうとしていたかもしれないこと（仮説）, ...],
+          "why_gap":       なぜすれ違いやすいか（1〜3 文）,
+          "ask_partner":   [相手に確かめる／聞いてみる問い, ...],
+          "reflect_self":  [自分の気持ちを整理する問い, ...],
+        }
+    """
+    if is_available():
+        try:
+            return _imagine_partner_ai(profile, situation, partner_hint)
+        except Exception:
+            pass
+    return _imagine_partner_fallback(profile, situation, partner_hint)
+
+
+def _imagine_partner_ai(
+    profile: Profile, situation: str, partner_hint: str
+) -> dict:
+    my_cards = "、".join(
+        f"{c.label}（{c.description}）" for c in profile.top_cards
+    )
+    sit = f"\nすれ違った具体的な状況：{situation}" if situation.strip() else ""
+    hint = f"\n相手についてのメモ：{partner_hint}" if partner_hint.strip() else ""
+    user_msg = f"""\
+相談者（本人）だけが、いま自分の価値観を可視化しました。相手はこの場にいません。
+
+本人が大切にしていること：{my_cards}
+本人の意思決定の傾向：{profile.decision_label}{sit}{hint}
+
+相手はここにいないので、相手の気持ちを **断定してはいけません**。
+「相手はこう考えている」ではなく、「相手はこう感じていた *かもしれない*」
+という **仮説** として、本人の視野を広げてください。
+
+次の JSON だけを返してください（前後に文章を付けない）:
+{{
+  "partner_maybe": ["相手が守ろうとしていた“かもしれない”こと（仮説・断定しない）", ...],
+  "why_gap": "本人と相手で、なぜこのテーマがすれ違いやすいか（価値観の違いとして・1〜3文）",
+  "ask_partner": ["その仮説を“本人に確かめる”ための、責めない問い", ...],
+  "reflect_self": ["本人が自分の気持ちを整理するための問い", ...]
+}}
+
+- partner_maybe / ask_partner / reflect_self は各 2〜3 個。
+- partner_maybe は必ず「〜かもしれない」の仮説の言い方にする。
+- ask_partner は「なぜ○○しなかったの」ではなく
+  「○○のとき、どんな気持ちだった？」のような、背景に触れる問いにする。
+- 相手を悪者にしない。本人を正しいとも言わない。"""
+
+    resp = _get_client().messages.create(
+        model=MODEL,
+        max_tokens=800,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    data = _extract_json(resp.content[0].text)
+    if data:
+        return {
+            "partner_maybe": data.get("partner_maybe", []),
+            "why_gap": data.get("why_gap", ""),
+            "ask_partner": data.get("ask_partner", []),
+            "reflect_self": data.get("reflect_self", []),
+        }
+    return _imagine_partner_fallback(profile, situation, partner_hint)
+
+
+def _imagine_partner_fallback(
+    profile: Profile, situation: str, partner_hint: str
+) -> dict:
+    """API 無しでも、本人の傾向の“対比”から相手の仮説を組み立てる。
+
+    ※ あくまで「別の価値観もありうる」を見せるための仮説であり、
+       相手が実際にそうだと決めつけない言い回しに徹する。
+    """
+    my_top_keys = set(profile.top_keys)
+    contrast_cats = CONTRAST_CATEGORIES.get(
+        profile.decision_category, ["relation", "autonomy"]
+    )
+    # 対比カテゴリから、本人が上位に置いていないカードを候補にする
+    candidates = [
+        c
+        for c in VALUE_CARDS
+        if c.category in contrast_cats and c.key not in my_top_keys
+    ]
+    picks = candidates[:2] if candidates else []
+
+    partner_maybe = [
+        f"もしかすると *{c.emoji}{c.label}* を守ろうとしていたのかもしれません"
+        f"（{c.description}）— これはあくまで仮説です。"
+        for c in picks
+    ]
+    if not partner_maybe:
+        partner_maybe = [
+            "相手には、あなたとは別の“大切にしているもの”が"
+            "あったのかもしれません。それが何かは、本人にしかわかりません。"
+        ]
+
+    my_first = profile.top_cards[0] if profile.top_cards else None
+    if my_first and picks:
+        why_gap = (
+            f"あなたは「{my_first.label}」を土台にしていて"
+            f"（{my_first.lean}）、相手はもしかすると「{picks[0].label}」を"
+            f"大事にしていた（{picks[0].lean}）のかもしれません。"
+            "同じ出来事でも、守りたいものが違うと、すれ違いとして現れます。"
+        )
+    elif my_first:
+        why_gap = (
+            f"あなたが「{my_first.label}」を強く大事にしているぶん、"
+            "そこを共有していない相手とは、同じ場面でも感じ方が"
+            "違うのかもしれません。"
+        )
+    else:
+        why_gap = "まず自分が何を大切にしているかを言葉にするところからです。"
+
+    ask_partner = [
+        f"{c.label}に近いことについて、"
+        f"「あのとき、どんな気持ちだった？」と聞いてみる"
+        for c in picks
+    ]
+    ask_partner.append("「本当はどうしてほしかった？」を、責めずに聞いてみる")
+
+    reflect_self = [
+        "今回のことで、自分は本当は何を守りたかった？",
+        "相手のどの反応に一番心が動いた？その裏にある自分の価値観は何だろう？",
+    ]
+    if situation.strip():
+        reflect_self.append(
+            f"「{situation}」について、自分が譲れない一点と、"
+            "実は譲れる部分はどこ？"
+        )
+    if partner_hint.strip():
+        reflect_self.append(
+            "相手について書いたメモを読み返して、"
+            "決めつけている部分はないか見直してみる"
+        )
+
+    return {
+        "partner_maybe": partner_maybe[:3],
+        "why_gap": why_gap,
+        "ask_partner": ask_partner[:3],
+        "reflect_self": reflect_self[:3],
+    }
 
 
 # ============================================================
