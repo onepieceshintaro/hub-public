@@ -42,6 +42,32 @@ current_uid = _u.lower() if (_u and storage.is_valid_hex(_u)) else None
 # 永続化が有効か = DB 設定あり かつ 復元キーあり
 _persist = storage.is_available() and bool(current_uid)
 
+
+# ---------------- 招待リンク（同じ家族キーを相手に渡す）----------------
+def _app_base_url() -> str | None:
+    """公開URLのベースを推定。secrets 明示 > ヘッダ推定 の順。取れなければ None。"""
+    try:
+        u = st.secrets.get("APP_BASE_URL")
+        if u:
+            return str(u).rstrip("/")
+    except Exception:
+        pass
+    try:
+        h = st.context.headers  # Streamlit のリクエストヘッダ
+        host = h.get("X-Forwarded-Host") or h.get("Host")
+        proto = h.get("X-Forwarded-Proto") or "https"
+        if host:
+            return f"{proto}://{host}"
+    except Exception:
+        pass
+    return None
+
+
+def invite_link(uid: str) -> str | None:
+    """相手に送る招待リンク（同じ家族キー付き URL）。ベース不明なら None。"""
+    base = _app_base_url()
+    return f"{base}/?u={uid}" if base else None
+
 # ---------------- 状態 ----------------
 if "draft_ratings" not in st.session_state:
     st.session_state["draft_ratings"] = default_ratings()
@@ -320,7 +346,11 @@ with tab_family:
                 )
         else:
             st.write("")
-            st.info("あと 1 人ぶん揃うと、読み解きが受け取れます。")
+            st.info(
+                "あと 1 人ぶん揃うと、読み解きが受け取れます。"
+                "相手を誘うには、サイドバーの「📨 パートナーを招待」から"
+                "リンクを送ってください。"
+            )
 
 
 # ============================================================
@@ -494,6 +524,38 @@ with st.sidebar:
                 st.query_params["u"] = uuid.uuid4().hex
                 st.session_state.pop("_loaded_uid", None)
                 st.rerun()
+
+        # ---- パートナーを招待 ----
+        with st.expander("📨 パートナーを招待", expanded=False):
+            if not current_uid:
+                st.caption(
+                    "先に上の「🔑 復元キー」でキーを作成すると、"
+                    "招待リンクを出せます。"
+                )
+            else:
+                st.caption(
+                    "このリンクを相手に送ると、二人の結果が同じ場所に集まります。"
+                    "**画面上はお互い、自分に宛てた読み解きしか見ません**"
+                    "（生の点数は相手に渡りません）。"
+                )
+                _link = invite_link(current_uid)
+                if _link:
+                    st.code(_link, language=None)
+                else:
+                    st.caption(
+                        "いま開いているページの URL の末尾に、"
+                        "次を付けて相手に送ってください："
+                    )
+                    st.code(f"?u={current_uid}", language=None)
+                    st.caption(
+                        "※ 固定リンクにしたい場合は、secrets に "
+                        "`APP_BASE_URL`（公開URL）を設定すると"
+                        "完成形リンクが出ます。"
+                    )
+                st.caption(
+                    "🔒 リンクを持つ人は二人の記録にアクセスできます。"
+                    "**相手にだけ** 送ってください。"
+                )
     else:
         st.caption(
             "※ この環境ではデータ保存（DB）が未設定のため、"
