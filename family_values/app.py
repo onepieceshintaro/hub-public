@@ -14,6 +14,7 @@ import streamlit as st
 
 import ai_engine
 import storage
+import topics
 from profile import (
     RATING_MAX,
     RATING_MIN,
@@ -58,19 +59,24 @@ _members = st.session_state["members"]
 # ---------------- ヘッダー ----------------
 st.markdown("### 🧭 家族の価値観マップ")
 st.caption(
+    "**一緒に暮らす前後の、二人の価値観のすり合わせに。**"
+    "同棲・入籍・出産などの節目に、二人で 30 分。"
     "**どちらが正しいかを決めるツールではありません。**"
-    "価値観の違いを可視化して、家族が対話できる状態をつくるためのものです。"
 )
 
 with st.expander("このアプリの考え方（はじめての方へ）", expanded=False):
     st.markdown(
+        "- **暮らし始める前後に**、二人の価値観を前向きにすり合わせるための"
+        "共同作業です。衝突してからではなく、その前に。\n"
         "- 価値観に **優劣はありません**。人によって優先順位が違うだけです。\n"
         "- 同じ出来事でも「挑戦しないことが怖い」人と"
         "「リスクを取ることが怖い」人がいて、どちらも自然です。\n"
         "- このアプリの AI は **答えを出さず、ジャッジしません**。"
         "「こういう見方もある」と *視点を増やす* 役割です。\n"
         "- ゴールは「相手は間違っている」ではなく、"
-        "**「相手はこういう世界を生きていたんだ」** という理解です。"
+        "**「相手はこういう世界を生きているんだ」** という理解です。\n"
+        "- もし今すでにすれ違っていて一人で来た場合は、"
+        "「🫱 相手を想像する（ひとり）」から始められます。"
     )
     if not ai_engine.is_available():
         st.info(
@@ -82,8 +88,9 @@ with st.expander("このアプリの考え方（はじめての方へ）", expan
 st.markdown("---")
 
 st.caption(
-    "💡 **まず一人で** 使えます。手応えがあれば、相手にも診断をお願いして"
-    "二人で見る——という流れです。"
+    "💡 おすすめの流れ：**二人がそれぞれ「🪞 自分を知る」→「👨‍👩‍👧 家族で見る」で並べる"
+    "→ 気になるテーマを「💬 対話支援」で話す**。"
+    "相手がまだのときは、一人で「🫱 相手を想像する」から始めても OK です。"
 )
 
 tab_diag, tab_solo, tab_family, tab_ai, tab_talk = st.tabs(
@@ -316,12 +323,20 @@ with tab_ai:
             "「🪞 自分を知る → 家族に追加」を 2 人ぶん行ってください。"
         )
     else:
-        theme = st.text_area(
-            "いま、すれ違っている具体的なテーマ（任意）",
+        _pick_ai = st.selectbox(
+            "テーマを選ぶ（同棲・二人暮らしの定番から）",
+            topics.topic_choices(),
+            key="ai_topic_pick",
+        )
+        if topics.topic_hint(_pick_ai):
+            st.caption(f"　{topics.topic_hint(_pick_ai)}")
+        _custom_ai = st.text_area(
+            "自分で書く場合はこちら（任意）",
             key="ai_theme",
             placeholder="例：将来のための自己投資の契約について",
-            height=80,
+            height=68,
         )
+        theme = topics.resolve_theme(_pick_ai, _custom_ai)
         if st.button("🧭 AI に整理してもらう", use_container_width=True, key="do_ai"):
             comp = compare_profiles(_members)
             with st.spinner("…違いを言葉にしています…"):
@@ -351,11 +366,19 @@ with tab_talk:
             "「🪞 自分を知る → 家族に追加」を 2 人ぶん行ってください。"
         )
     else:
-        theme2 = st.text_input(
-            "話し合いたいテーマ（任意）",
+        _pick_talk = st.selectbox(
+            "話し合いたいテーマ（同棲・二人暮らしの定番から）",
+            topics.topic_choices(),
+            key="talk_topic_pick",
+        )
+        if topics.topic_hint(_pick_talk):
+            st.caption(f"　{topics.topic_hint(_pick_talk)}")
+        _custom_talk = st.text_input(
+            "自分で書く場合はこちら（任意）",
             key="talk_theme",
             placeholder="例：これからのお金の使い方",
         )
+        theme2 = topics.resolve_theme(_pick_talk, _custom_talk)
         if st.button("💬 問いを提案してもらう", use_container_width=True, key="do_talk"):
             comp = compare_profiles(_members)
             with st.spinner("…問いを考えています…"):
