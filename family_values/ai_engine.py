@@ -224,6 +224,151 @@ def _analyze_fallback(comparison: Comparison, theme: str) -> str:
 
 
 # ============================================================
+# ③' 一人ひとりに宛てて返す：生データを露出させない私信
+# ============================================================
+# 二人ぶんのデータを合わせて解釈するが、画面に出すのは
+# 「その人に宛てた私信」だけ。相手の生の点数・カードはそのまま出さず、
+# やわらかい言葉に翻訳して渡す。露出への抵抗（＝データが武器になる）を防ぐ。
+def interpret_for(me: Profile, others: list[Profile], theme: str = "") -> str:
+    """me 本人に宛てた読み解きを返す（相手の生データは出さない）。
+
+    Args:
+        me:     読み手本人のプロファイル
+        others: 相手（家族の残り）のプロファイル群
+        theme:  任意のテーマ
+    """
+    others = [p for p in others if p.name != me.name]
+    if not others:
+        return "相手がまだ登録されていません。二人ぶん揃うと読み解きが出せます。"
+    if is_available():
+        try:
+            return _interpret_for_ai(me, others, theme)
+        except Exception:
+            pass
+    return _interpret_for_fallback(me, others, theme)
+
+
+def _interpret_for_ai(me: Profile, others: list[Profile], theme: str) -> str:
+    me_cards = "、".join(
+        f"{c.label}（{c.description}）" for c in me.top_cards
+    )
+    other_lines = []
+    for p in others:
+        cards = "、".join(
+            f"{c.label}（{c.description}）" for c in p.top_cards
+        )
+        other_lines.append(
+            f"- {p.name}：{cards}／意思決定の傾向＝{p.decision_label}"
+        )
+    others_ctx = "\n".join(other_lines)
+    theme_line = f"\nいま気になっているテーマ：{theme}" if theme.strip() else ""
+
+    user_msg = f"""\
+これは「あなた」＝{me.name} だけに宛てた私信です。
+相手には別途、相手に宛てた内容を返します。だから安心して読める内容にします。
+
+あなた（{me.name}）が大切にしていること：{me_cards}
+あなたの意思決定の傾向：{me.decision_label}
+
+相手の情報（※相手の生の点数やカード名を並べて出さず、
+やわらかい言葉に“翻訳”して伝えること）：
+{others_ctx}{theme_line}
+
+次の 4 つを、{me.name} に語りかける「あなた」で書いてください。
+相手を責めない。あなたを正しいとも言わない。相手の数値は書かない。
+
+【あなたが大切にしていること】
+本人は知っているので 1〜2 文で軽く言い添える。
+
+【相手が大切にしているみたいなこと】
+「〜を大事にしているみたい」「〜かもしれない」と、翻訳された仮説の言い方で。
+
+【二人で気をつけると良さそうな場面】
+違いが顔を出しやすい場面を、原因探しではなく
+「先に知っておくと備えやすい」トーンで 2〜3 文。
+
+【あなたから聞いてみるとよさそうなこと】
+あなたが相手にひとつ聞いてみる問いを 2〜3 個。責めない問いにする。
+
+各見出しは上の【】をそのまま使ってください。"""
+
+    resp = _get_client().messages.create(
+        model=MODEL,
+        max_tokens=900,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return resp.content[0].text.strip()
+
+
+def _interpret_for_fallback(
+    me: Profile, others: list[Profile], theme: str
+) -> str:
+    """API 無しでも、相手の生データを出さずに私信を組み立てる。"""
+    parts: list[str] = []
+
+    parts.append("### あなたが大切にしていること")
+    mine = "、".join(f"{c.emoji}{c.label}" for c in me.top_cards[:3])
+    parts.append(
+        f"あなたは {mine} を土台にしているみたいです（{me.decision_label}）。"
+    )
+
+    parts.append("\n### 相手が大切にしているみたいなこと")
+    # 相手固有（自分の上位に無い）カードだけを、翻訳した言葉で紹介
+    my_keys = set(me.top_keys)
+    for p in others:
+        uniq = [c for c in p.top_cards if c.key not in my_keys]
+        show = uniq[:2] if uniq else p.top_cards[:1]
+        for c in show:
+            parts.append(
+                f"- {p.name} は「{c.label}」を大事にしているみたいです"
+                f"（{c.description}）— あくまで見え方の仮説です。"
+            )
+
+    parts.append("\n### 二人で気をつけると良さそうな場面")
+    my_first = me.top_cards[0] if me.top_cards else None
+    said = False
+    for p in others:
+        uniq = [c for c in p.top_cards if c.key not in my_keys]
+        if my_first and uniq:
+            oc = uniq[0]
+            parts.append(
+                f"- あなたが「{my_first.label}」で動く（{my_first.lean}）一方、"
+                f"{p.name} は「{oc.label}」で動く（{oc.lean}）場面。"
+                "先に知っておくと、備えやすいポイントです。"
+            )
+            said = True
+    if not said:
+        parts.append(
+            "- 大切にしている場所は近いようです。それでも細かな優先順位が"
+            "場面で顔を出すことがあります。"
+        )
+
+    parts.append("\n### あなたから聞いてみるとよさそうなこと")
+    asked = False
+    for p in others:
+        uniq = [c for c in p.top_cards if c.key not in my_keys]
+        for c in uniq[:2]:
+            parts.append(
+                f"- {p.name} に「{c.label}に近いこと、"
+                "あのときどんな気持ちだった？」と聞いてみる"
+            )
+            asked = True
+    if not asked:
+        parts.append("- 「最近、安心できた瞬間っていつ？」と聞いてみる")
+    if theme.strip():
+        parts.append(
+            f"- 「{theme}」について、お互いの“譲れない一点”を一つずつ出し合ってみる"
+        )
+
+    parts.append(
+        "\n> これはあなたに宛てた内容です。相手には相手に宛てた内容が返ります。"
+        "相手の点数は表示していません。"
+    )
+    return "\n".join(parts)
+
+
+# ============================================================
 # ①.5 ソロ起点：相手の視点を「仮説として」想像する
 # ============================================================
 # 起点をひとりにするための機能。相手はこの場にいないので、

@@ -1,14 +1,15 @@
 """家族の価値観を可視化し、対話を支援する AI（MVP）。
 
 構想の MVP を 1 画面に:
-  ① 個人診断   … 価値観・強み・ストレスポイント・意思決定傾向を可視化
-  ② 家族共有   … 家族全員の結果を並べる
-  ③ AI 分析    … 違いを「対話の共通言語」に翻訳する
-  ④ 対話支援   … 答えではなく「問い」を提案する
+  🪞 自分を知る   … 価値観・強み・ストレスポイント・意思決定傾向を可視化
+  🫱 相手を想像   … 相手がまだのとき、相手の視点を仮説として想像（ひとり）
+  👨‍👩‍👧 二人で見る … 生データは見せ合わず、共通の足場だけ確認
+  🧭 読み解き     … 二人ぶんを解釈し、“その人に宛てた私信” を返す
+  💬 対話支援     … 答えではなく「問い」を提案する
 
 思想:
-  診断アプリではない。相性診断でもない。
-  “対話の共通言語” をつくり、家族が対話できる状態にするためのツール。
+  診断アプリではない。相性診断でもない。“対話の共通言語” をつくるツール。
+  価値観は見せ合うのではなく、翻訳して各自に返す（露出＝武器化を防ぐ）。
 """
 import streamlit as st
 
@@ -88,8 +89,9 @@ with st.expander("このアプリの考え方（はじめての方へ）", expan
 st.markdown("---")
 
 st.caption(
-    "💡 おすすめの流れ：**二人がそれぞれ「🪞 自分を知る」→「👨‍👩‍👧 家族で見る」で並べる"
-    "→ 気になるテーマを「💬 対話支援」で話す**。"
+    "💡 おすすめの流れ：**二人がそれぞれ「🪞 自分を知る」→「👨‍👩‍👧 二人で見る」で揃え、"
+    "「🧭 読み解き」で"
+    "*自分に宛てた読み解き* を受け取る**（相手の生の点数は見せ合いません）。"
     "相手がまだのときは、一人で「🫱 相手を想像する」から始めても OK です。"
 )
 
@@ -97,8 +99,8 @@ tab_diag, tab_solo, tab_family, tab_ai, tab_talk = st.tabs(
     [
         "🪞 自分を知る",
         "🫱 相手を想像する（ひとり）",
-        "👨‍👩‍👧 家族で見る",
-        "🧭 AI 分析",
+        "👨‍👩‍👧 二人で見る",
+        "🧭 読み解き",
         "💬 対話支援",
     ]
 )
@@ -176,12 +178,12 @@ with tab_diag:
             if saved:
                 st.success(
                     f"「{prof.name}」を家族に追加し、**復元キーに保存** しました。"
-                    "「👨‍👩‍👧 家族で見る」タブで並べて見られます。"
+                    "「👨‍👩‍👧 二人で見る」タブで確認できます。"
                 )
             else:
                 st.success(
                     f"「{prof.name}」を家族に追加しました。"
-                    "「👨‍👩‍👧 家族で見る」タブで並べて見られます。"
+                    "「👨‍👩‍👧 二人で見る」タブで確認できます。"
                 )
                 if storage.is_available() and not current_uid:
                     st.info(
@@ -261,7 +263,8 @@ with tab_solo:
             st.write("")
             st.success(
                 "手応えがあれば、次は相手にも「🪞 自分を知る」を試してもらい、"
-                "「👨‍👩‍👧 家族で見る」で二人ぶんを並べてみてください。",
+                "「👨‍👩‍👧 二人で見る」で揃えて、"
+                "「🧭 読み解き」を受け取ってみてください。",
                 icon="🌱",
             )
 
@@ -270,9 +273,12 @@ with tab_solo:
 # ② 家族共有
 # ============================================================
 with tab_family:
-    st.markdown("#### ② 家族全員の結果を並べる")
+    st.markdown("#### ② 二人ぶん、そろったかな")
     st.caption(
-        "一人ずつ「🪞 自分を知る」で作った結果を、ここで並べて見比べます。"
+        "ここでは **お互いの生の点数は見せ合いません**。"
+        "各自の詳しい結果は本人だけのもの。"
+        "二人ぶん揃ったら「🧭 読み解き」で、"
+        "**あなたに宛てた読み解き** を受け取れます。"
     )
 
     if not _members:
@@ -281,21 +287,12 @@ with tab_family:
             "「🪞 自分を知る」で診断し、「この結果を家族に追加」を押してください。"
         )
     else:
-        cols = st.columns(min(len(_members), 3))
-        for i, m in enumerate(_members):
-            with cols[i % len(cols)]:
-                with st.container(border=True):
-                    st.markdown(f"**🪞 {m.name}**")
-                    for c in m.top_cards:
-                        st.markdown(f"{c.emoji} {c.label}")
-                    st.caption(f"傾向：{m.decision_label}")
-
-        st.write("")
-        st.markdown("**登録メンバー**")
+        # 登録状況（名前だけ。価値観の中身は出さない）
+        st.markdown("**登録できている人**")
         for m in list(_members):
             c1, c2 = st.columns([4, 1])
             with c1:
-                st.markdown(m.summary_line())
+                st.markdown(f"🪞 {m.name}（登録済み）")
             with c2:
                 if st.button("削除", key=f"del_{m.name}"):
                     if _persist:
@@ -305,24 +302,58 @@ with tab_family:
                     ]
                     st.rerun()
 
+        # 共通して大切にしていること＝安全に分かち合える“共通の足場”
+        if len(_members) >= 2:
+            comp = compare_profiles(_members)
+            st.write("")
+            st.markdown("**🤝 二人に共通して大切そうなこと**")
+            if comp.shared_keys:
+                for k in comp.shared_keys:
+                    c = get_card(k)
+                    if c:
+                        st.markdown(f"- {c.emoji} {c.label}")
+                st.caption("ここは、二人の対話の足場になりやすいところです。")
+            else:
+                st.markdown(
+                    "- 上位では、はっきり共通する価値観は出ていません。"
+                    "だからこそ「🧭 読み解き」で違いを言葉にする価値があります。"
+                )
+        else:
+            st.write("")
+            st.info("あと 1 人ぶん揃うと、読み解きが受け取れます。")
+
 
 # ============================================================
-# ③ AI 分析
+# ③ 読み解き（あなた宛て）：生データを見せ合わず、私信で返す
 # ============================================================
 with tab_ai:
-    st.markdown("#### ③ 違いを「対話の共通言語」に翻訳する")
+    st.markdown("#### 🧭 あなたに宛てた読み解き")
     st.caption(
-        "AI は答えを出しません。どちらが正しいかも決めません。"
-        "「それぞれが何を守ろうとしているのか」を整理して、"
-        "*視点を増やす* だけです。"
+        "二人ぶんのデータを合わせて解釈し、**あなたに宛てた内容だけ** を返します。"
+        "**相手の生の点数は表示しません。**"
+        "相手には、相手に宛てた別の読み解きが届きます。"
     )
 
     if len(_members) < 2:
         st.info(
-            "AI 分析には **2 人以上** の登録が必要です。"
+            "読み解きには **2 人ぶん** の登録が必要です。"
             "「🪞 自分を知る → 家族に追加」を 2 人ぶん行ってください。"
         )
     else:
+        # 「あなたは誰？」＝私信の宛先。診断した本人を初期選択に。
+        _names = [m.name for m in _members]
+        _cur = st.session_state.get("current_profile")
+        _default_idx = (
+            _names.index(_cur.name)
+            if (_cur and _cur.name in _names)
+            else 0
+        )
+        _who = st.selectbox(
+            "あなたはどちらですか？（この人に宛てて返します）",
+            _names,
+            index=_default_idx,
+            key="interp_who",
+        )
         _pick_ai = st.selectbox(
             "テーマを選ぶ（同棲・二人暮らしの定番から）",
             topics.topic_choices(),
@@ -333,20 +364,32 @@ with tab_ai:
         _custom_ai = st.text_area(
             "自分で書く場合はこちら（任意）",
             key="ai_theme",
-            placeholder="例：将来のための自己投資の契約について",
+            placeholder="例：これからのお金の使い方",
             height=68,
         )
         theme = topics.resolve_theme(_pick_ai, _custom_ai)
-        if st.button("🧭 AI に整理してもらう", use_container_width=True, key="do_ai"):
-            comp = compare_profiles(_members)
-            with st.spinner("…違いを言葉にしています…"):
-                st.session_state["ai_result"] = ai_engine.analyze(comp, theme)
+        if st.button(
+            "🧭 わたし宛ての読み解きを受け取る",
+            use_container_width=True,
+            key="do_ai",
+        ):
+            me = next((m for m in _members if m.name == _who), None)
+            others = [m for m in _members if m.name != _who]
+            with st.spinner("…あなたに宛てて、言葉にしています…"):
+                st.session_state["ai_result"] = ai_engine.interpret_for(
+                    me, others, theme
+                )
+            st.session_state["ai_result_for"] = _who
 
         if st.session_state.get("ai_result"):
             st.markdown("---")
+            _for = st.session_state.get("ai_result_for", "")
+            if _for:
+                st.markdown(f"##### 📨 {_for} さんへ")
             st.markdown(st.session_state["ai_result"])
             st.caption(
                 "※ これは “ひとつの見方” であって、答えではありません。"
+                "相手の点数は含まれていません。"
             )
 
 
@@ -469,6 +512,7 @@ with st.sidebar:
             "current_profile",
             "solo_result",
             "ai_result",
+            "ai_result_for",
             "talk_result",
             "draft_ratings",
         ]:
